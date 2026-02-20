@@ -7,7 +7,7 @@ export interface AuthReq extends Request {
     userId? : string,
 }
 
-interface MyToken extends JwtPayload {
+export interface MyToken extends JwtPayload {
   userId: string;
 }
 
