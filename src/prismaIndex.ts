@@ -1,7 +1,8 @@
 import express from "express";
+import "dotenv/config";
 import authRoutes from "./routes/prismaAuth.js";
 import {authMiddleware} from "./middleware/prismaMiddleware.js"
-import "dotenv/config";
+
 
 const app = express();
 
