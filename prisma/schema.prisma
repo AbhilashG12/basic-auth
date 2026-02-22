@@ -14,6 +14,7 @@ model User {
   email String @unique
   password String
   tokens    RefreshToken[]
+  sessions  Session[]
   createdAt DateTime @default(now())
 }
 
@@ -25,4 +26,14 @@ model RefreshToken {
   revoked   Boolean  @default(false)
   createdAt DateTime @default(now())
   expiresAt DateTime
+}
+
+model Session {
+  id      String   @id
+  sid     String   @unique
+  data    String   @db.Text
+  expires Int
+
+  userId  Int?
+  user    User?    @relation(fields: [userId], references: [id])
 }

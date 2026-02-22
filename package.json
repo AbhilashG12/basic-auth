@@ -23,8 +23,12 @@
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.4.1",
     "@prisma/client": "^7.4.1",
+    "@quixo3/prisma-session-store": "^3.1.19",
+    "@types/express-session": "^1.18.2",
+    "argon2": "^0.44.0",
     "bcrypt": "^6.0.0",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "nodemon": "^3.1.11",

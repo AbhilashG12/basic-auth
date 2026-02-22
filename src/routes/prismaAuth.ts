@@ -1,8 +1,11 @@
 import {Router,type Request, type Response} from "express";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+// import bcrypt from "bcrypt";
+import argon2 from "argon2";
 import prisma from "../prisma.js";
 import { generateAccess , generateRefresh, revokeRefresh, storeRefresh } from "../utils/tokens.js";
+import { pseudoRandomBytes } from "node:crypto";
+import session from "express-session";
 
 const router = Router();
 
@@ -15,7 +18,8 @@ router.post("/register",async(req:Request,res:Response)=>{
         const user = await prisma.user.findUnique({where:{email}});
         if(user) return res.status(409).json({message:"User already exists"});
 
-        const hashed = await bcrypt.hash(password,10)
+        // const hashed = await bcrypt.hash(password,10)
+        const hashed = await argon2.hash(password);
 
         const newUser = await prisma.user.create({
             data : {
@@ -39,7 +43,8 @@ router.post("/login",async(req:Request,res:Response)=>{
         const user = await prisma.user.findUnique({where:{email}});
         if(!user) return res.status(404).json({message:"User Not Found , Invalid credentials"});
 
-        const isMatch = await bcrypt.compare(password,user.password);
+        // const isMatch = await bcrypt.compare(password,user.password);
+        const isMatch = await argon2.verify(user.password,password)
         if(!isMatch) return res.status(400).json({message:"Invalid credentials"});
 
         const accessToken = generateAccess(user.id);
@@ -90,5 +95,35 @@ router.post("/refresh",async(req:Request,res:Response)=>{
     }
 
 })
+
+
+router.post("/session-login",async(req,res)=>{
+    const {email,password} = req.body;
+
+    const user = await prisma.user.findUnique({where:{email}});
+    if(!user) return res.status(404).json({message:"User not found"});
+
+    const isValid = await argon2.verify(user.password,password);
+    if(!isValid) return res.status(400).json({message:"Invalid password"});
+
+    req.session.userId = user.id;
+
+    res.json({message:"Logged in via session"});
+})
+
+router.get("/session-profile",(req,res)=>{
+    if(!req.session.userId) return res.status(401).json({message:"Not Authenticated"});
+
+    res.json({
+        message : "Session Login Success",
+        userId : req.session.userId,
+    })
+})
+
+router.post("/session-logout", (req, res) => {
+  req.session.destroy(() => {
+    res.json({ message: "Logged out" });
+  });
+});
 
 export default router;
