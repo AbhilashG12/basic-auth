@@ -13,6 +13,7 @@ model User {
   id    Int @id @default(autoincrement())
   email String @unique
   password String
+  role Role @default(USER)
   tokens    RefreshToken[]
   sessions  Session[]
   createdAt DateTime @default(now())
@@ -32,8 +33,15 @@ model Session {
   id      String   @id
   sid     String   @unique
   data    String   @db.Text
-  expires Int
+  expiresAt DateTime
 
   userId  Int?
   user    User?    @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  USER
+  ADMIN
+  MODERATOR
+
 }

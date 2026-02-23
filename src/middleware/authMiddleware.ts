@@ -4,11 +4,17 @@ import jwt , {type JwtPayload} from "jsonwebtoken";
 const JWT_SECRET = process.env.JWT_SECRET || "mysecret";
 
 export interface AuthReq extends Request {
-    userId? : string,
+    user?:{
+        userId? : string,
+        role:string
+    }
 }
 
 export interface MyToken extends JwtPayload {
-  userId: string;
+  user?:{
+        userId? : string,
+        role:string
+    }
 }
 
 export const authMiddleware = (
@@ -26,7 +32,10 @@ export const authMiddleware = (
     const token = authHeader.split(" ")[1];
     try{
         const decoded = jwt.verify(token as string,JWT_SECRET) as unknown as MyToken;
-        req.userId = decoded.userId
+        req.user = {
+      userId: decoded.userId,
+      role: decoded.role,
+    };
         next();
 
     }catch{

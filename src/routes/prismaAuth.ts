@@ -1,11 +1,12 @@
 import {Router,type Request, type Response} from "express";
 import jwt from "jsonwebtoken";
 // import bcrypt from "bcrypt";
+import { requireRole } from "../middleware/roleMiddleware.js";
 import argon2 from "argon2";
 import prisma from "../prisma.js";
 import { generateAccess , generateRefresh, revokeRefresh, storeRefresh } from "../utils/tokens.js";
-import { pseudoRandomBytes } from "node:crypto";
 import session from "express-session";
+import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = Router();
 
@@ -27,13 +28,14 @@ router.post("/register",async(req:Request,res:Response)=>{
                 password : hashed,
             }
         })
-         const accessToken = generateAccess(newUser.id);
+         const accessToken = generateAccess(newUser.id,newUser.role);
          const refreshToken = generateRefresh(newUser.id);
          await storeRefresh(newUser.id , refreshToken);
 
         res.json({message:"User created in MySql: ", userId : newUser.id , accessToken,refreshToken})
     }catch(err){
-        return res.status(500).json({message : "Internal Server Error" , err});
+        console.error(err)
+        return res.status(500).json({message : "Internal Server Error"});
     }
 });
 
@@ -47,7 +49,7 @@ router.post("/login",async(req:Request,res:Response)=>{
         const isMatch = await argon2.verify(user.password,password)
         if(!isMatch) return res.status(400).json({message:"Invalid credentials"});
 
-        const accessToken = generateAccess(user.id);
+        const accessToken = generateAccess(user.id,user.role);
         const refreshToken = generateRefresh(user.id);
 
         await storeRefresh(user.id,refreshToken)
@@ -61,40 +63,42 @@ router.post("/login",async(req:Request,res:Response)=>{
         );
         res.json({token,accessToken,refreshToken});
     }catch(err){
+        console.error(err)
         return res.status(500).json({message:"Server Error"});
     }
 
 })
 
-router.post("/refresh",async(req:Request,res:Response)=>{
-    const {token} = req.body;
-    if(!token) return res.status(401).json({message:"Token not found"});
-    const stored = await prisma.refreshToken.findUnique({
-        where : {token}
+router.post("/refresh", async (req, res) => {
+  const { token } = req.body;
+  if (!token) return res.status(401).json({ message: "Token not found" });
+
+  const stored = await prisma.refreshToken.findUnique({ where: { token } });
+  if (!stored || stored.revoked)
+    return res.status(401).json({ message: "Invalid refresh token" });
+
+  try {
+    const payload = jwt.verify(token, REFRESH_TOKEN_SECRET) as { userId: number };
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
     });
-    if(!stored || stored.revoked){
-        return res.status(401).json({message : "Invalid refresh token"});
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    }
+    await revokeRefresh(token);
 
-    try {
-        const payload = jwt.verify(token,REFRESH_TOKEN_SECRET) as {userId:number}
-        await revokeRefresh(token);
+    const newAccess = generateAccess(user.id, user.role);
+    const newRefresh = generateRefresh(user.id);
 
-        const newAccess = generateAccess(payload.userId);
-        const newRefresh = generateRefresh(payload.userId);
-        await storeRefresh(payload.userId,newRefresh);
-        res.json({
-            accessToken : newAccess,
-            refreshToken : newRefresh
-        })
+    await storeRefresh(user.id, newRefresh);
 
-    }catch(err){
-        res.status(500).json({message:"Invalid token"});
-
-    }
-
-})
+    res.json({
+      accessToken: newAccess,
+      refreshToken: newRefresh,
+    });
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+});
 
 
 router.post("/session-login",async(req,res)=>{
@@ -124,6 +128,31 @@ router.post("/session-logout", (req, res) => {
   req.session.destroy(() => {
     res.json({ message: "Logged out" });
   });
+});
+
+router.get("/admin-area",authMiddleware,requireRole("ADMIN"),(req,res)=>{
+    res.json({message:"Welcome Admin"});
+
+})
+
+router.get("moderator-tools",authMiddleware,requireRole("ADMIN","MODERATOR"),(req,res)=>{
+    res.json({message:"Moderator or Admin Access Granted"});
+})
+
+router.get("user-area",authMiddleware,requireRole("USER","ADMIN","MODERATOR"),(req,res)=>{
+    res.json({message:"User access granted"})
+})
+
+router.get("/admin-dashboard", async(req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  
+  const user = await prisma.user.findUnique({ where: { id: req.session.userId } });
+
+  if (!user || !user.role) {
+  return res.status(403).json({ message: "Forbidden" });
+}
+
+  res.json({ message: "Session admin access granted" });
 });
 
 export default router;

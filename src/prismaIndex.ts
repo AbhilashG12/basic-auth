@@ -1,5 +1,5 @@
-import express from "express";
 import "dotenv/config";
+import express from "express";
 import authRoutes from "./routes/prismaAuth.js";
 import {authMiddleware} from "./middleware/prismaMiddleware.js"
 import session from "express-session";
@@ -10,7 +10,6 @@ import prisma from "./prisma.js";
 const app = express();
 
 app.use(express.json());
-app.use("/auth",authRoutes);
 
 app.use(
     session({
@@ -29,6 +28,8 @@ app.use(
         })
     }),
 )
+
+app.use("/auth",authRoutes);
 
 app.get("/protected",authMiddleware,(req,res)=>{
     res.json({message:"Protected data is accessed"});
